@@ -1,6 +1,8 @@
 const path = require('path')
+const crypto = require('crypto')
 const { Server } = require('socket.io')
 const { Client: SSHClient } = require('ssh2')
+const consola = require('consola')
 const { verifyAuthSync } = require('../utils/verify-auth')
 const { sendNoticeAsync } = require('../utils/notify')
 const { isAllowedIp, ping } = require('../utils/tools')
@@ -307,8 +309,31 @@ function createServerIo(serverIo) {
           stream && stream.setWindow(rows, cols)
         }
 
+        const execScript = async (scriptContent) => {
+          if (!targetSSHClient || !targetSSHClient._sock || !targetSSHClient._sock.writable) {
+            socket.emit('script_exec_fail', '终端连接已断开，无法执行脚本')
+            return
+          }
+
+          if (!scriptContent || typeof scriptContent !== 'string') {
+            socket.emit('script_exec_fail', '脚本内容无效')
+            return
+          }
+
+          try {
+            // 使用heredoc格式，让用户看到完整脚本并决定是否执行
+            const heredocScript = `bash <<'EOF'\n${scriptContent}\nEOF`
+            stream.write(heredocScript)
+            socket.emit('script_exec_success', '脚本已输入到终端')
+          } catch (error) {
+            consola.error('执行脚本失败:', error.message)
+            socket.emit('script_exec_fail', `执行失败: ${error.message}`)
+          }
+        }
+
         socket.on('input', listenerInput)
         socket.on('resize', resizeShell)
+        socket.on('exec_script', execScript)
       } catch (error) {
         consola.error('ws_terminal事件处理失败:', error.message)
         socket.emit('terminal_connect_fail', `连接失败: ${ error.message }`)

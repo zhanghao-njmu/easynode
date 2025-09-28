@@ -211,6 +211,19 @@ const connectIO = () => {
       term.value.write(`\r\n\x1b[91m创建终端失败: ${ message }, 回车重新发起连接\x1b[0m`)
     })
 
+    // 脚本执行结果监听
+    socket.value.on('script_exec_success', (message) => {
+      console.log('脚本执行成功:', message)
+      // 可以选择性地在终端显示脚本执行成功的信息
+      // term.value.write(`\r\n\x1b[92m${message}\x1b[0m\r\n`)
+    })
+
+    socket.value.on('script_exec_fail', (message) => {
+      console.error('脚本执行失败:', message)
+      term.value.write(`\r\n\x1b[91m脚本执行失败: ${ message }\x1b[0m\r\n`)
+      $message.error(`脚本执行失败: ${ message }`)
+    })
+
   })
 
   socket.value.on('disconnect', (reason) => {
@@ -673,7 +686,21 @@ const focusTab = () => {
   }, 200)
 }
 
+const isMultiLineScript = (command) => {
+  return command.includes('\n') && (
+    /\b(for|while|if|function|case)\b/.test(command) ||
+    /\bdo\b|\bthen\b|\bfi\b|\bdone\b|\besac\b/.test(command) ||
+    command.includes('{') || command.includes('}')
+  )
+}
+
 const inputCommand = (command, type = 'input') => {
+  if (type === 'script' && isMultiLineScript(command)) {
+    // 多行脚本使用后端临时文件执行
+    socket.value.emit('exec_script', command)
+    return
+  }
+
   if (type === 'script') {
     command = command + (autoExecuteScript.value ? '\n' : '')
   }
@@ -685,7 +712,15 @@ const execExternalCommand = (command) => {
     $message.error('终端连接已断开,无法执行指令')
     return
   }
-  socket.value.emit('input', command + '\n')
+
+  if (isMultiLineScript(command)) {
+    // 多行脚本使用后端临时文件执行
+    socket.value.emit('exec_script', command)
+  } else {
+    // 单行命令直接发送
+    socket.value.emit('input', command + '\n')
+  }
+
   term.value?.focus()
 }
 

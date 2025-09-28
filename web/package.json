@@ -55,6 +55,7 @@
     "code-inspector-plugin": "^0.20.7",
     "eslint": "^8.56.0",
     "eslint-plugin-vue": "^9.27.0",
+    "js-tokens": "^9.0.1",
     "sass": "^1.86.0",
     "unplugin-auto-import": "^19.1.2",
     "unplugin-vue-components": "^28.4.1",
